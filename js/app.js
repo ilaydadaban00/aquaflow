@@ -22,8 +22,8 @@
     authMode: 'login', // 'login', 'register', 'quick'
     authStep: 'form', // register modunda: 'form' | 'verify'
     pendingReg: null, // e-posta doğrulaması bekleyen kayıt bilgileri
-    verifyDevNotice: false,
-    verifyDevCode: '',
+    verifyToken: '',  // send-code'dan dönen imzalı token
+    resetToken: '',   // şifre sıfırlama token'ı
     resendAt: 0,
     postLoginView: null, // Giriş sonrası dönülecek sayfa (ör. 'customer_account')
     dismissedBanner: false,
@@ -3186,26 +3186,18 @@
           body: JSON.stringify({ email: pending.email, purpose: 'register' })
         });
         const body = await res.json().catch(() => ({}));
-        if (res.status === 404) {
-          showToast('Sunucu eski sürüm çalışıyor. Açık serve.ps1 penceresini kapatıp yeni serve.ps1\'i başlatın.', '✕');
-          return;
-        }
         if (!res.ok) {
-          if (body.detail && ['localhost', '127.0.0.1'].includes(location.hostname)) console.warn('[E-posta hatası]', body.detail);
           if (body.retryAfter) state.resendAt = Date.now() + body.retryAfter * 1000;
           showToast(body.error || 'Doğrulama kodu gönderilemedi.', '✕');
           return;
         }
-        state.verifyDevNotice = !!body.dev;
-        state.verifyDevCode = body.dev ? String(body.code || '') : '';
+        state.verifyToken = body.token || '';
         state.resendAt = Date.now() + (body.resendAfter || 60) * 1000;
         state.authStep = 'verify';
         renderApp();
-        showToast(body.dev
-          ? (state.verifyDevCode ? `E-posta gitmedi. Doğrulama kodunuz: ${state.verifyDevCode}` : 'E-posta gitmedi. Kodu serve.ps1 penceresinde görün.')
-          : 'Doğrulama kodu e-posta adresinize gönderildi.');
+        showToast('Doğrulama kodu e-posta adresinize gönderildi.');
       } catch (err) {
-        showToast('Doğrulama sunucusuna ulaşılamıyor. Siteyi serve.ps1 veya baslat.bat ile açın.', '✕');
+        showToast('E-posta sunucusuna ulaşılamıyor. Lütfen tekrar deneyin.', '✕');
       }
     },
 
@@ -3227,7 +3219,7 @@
         const res = await fetch('/api/email/verify-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: pending.email, code })
+          body: JSON.stringify({ email: pending.email, code, token: state.verifyToken })
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || !body.verified) {
@@ -3235,7 +3227,7 @@
           return;
         }
       } catch (err) {
-        showToast('Doğrulama sunucusuna ulaşılamıyor. Siteyi serve.ps1 ile açın.', '✕');
+        showToast('Doğrulama sunucusuna ulaşılamıyor. Lütfen tekrar deneyin.', '✕');
         return;
       }
 
@@ -3339,17 +3331,15 @@
           showToast(body.error || 'Doğrulama kodu e-postaya gönderilemedi.', '✕');
           return;
         }
-        state.resetDevCode = body.dev ? String(body.code || '') : '';
+        state.resetToken = body.token || '';
         state.resetEmail = email;
         state.resetStep = 2;
         state.simulatedCodeNotice = res;
         renderApp();
-        showToast(body.dev
-          ? (state.resetDevCode ? `E-posta gitmedi. Doğrulama kodunuz: ${state.resetDevCode}` : 'E-posta gitmedi. Kodu serve.ps1 penceresinde görün.')
-          : 'Doğrulama kodu e-posta adresinize gönderildi.');
+        showToast('Doğrulama kodu e-posta adresinize gönderildi.');
         return;
       } catch (err) {
-        showToast('Doğrulama sunucusuna ulaşılamıyor. Siteyi serve.ps1 veya baslat.bat ile açın.', '✕');
+        showToast('E-posta sunucusuna ulaşılamıyor. Lütfen tekrar deneyin.', '✕');
         return;
       }
     },
@@ -3369,7 +3359,7 @@
         const apiRes = await fetch('/api/email/verify-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: String(state.resetEmail || '').trim().toLowerCase(), code })
+          body: JSON.stringify({ email: String(state.resetEmail || '').trim().toLowerCase(), code, token: state.resetToken })
         });
         const body = await apiRes.json().catch(() => ({}));
         if (!apiRes.ok || !body.verified) {

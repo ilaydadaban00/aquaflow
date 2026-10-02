@@ -1,6 +1,12 @@
 /**
  * Cloudflare Pages Function: POST /api/email/send-order
- * Sipariş onay maili gönderir (müşteriye + admin'e).
+ * Sipariş onay maili — Resend.com API ile gönderir.
+ * Müşteriye + admin'e bildirim.
+ *
+ * Env Variables:
+ *   RESEND_API_KEY   - Resend API anahtarı
+ *   ADMIN_EMAIL      - Admin bildirim adresi
+ *   MAIL_FROM_NAME   - Gönderen adı
  */
 
 export async function onRequestPost(context) {
@@ -20,8 +26,13 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ error: 'Geçersiz istek.' }), { status: 400, headers: corsHeaders });
   }
 
-  const fromAddress = env.MAIL_FROM_ADDRESS || 'aquaflowymv@gmail.com';
+  const resendKey = env.RESEND_API_KEY;
+  if (!resendKey) {
+    return new Response(JSON.stringify({ error: 'RESEND_API_KEY eksik.' }), { status: 500, headers: corsHeaders });
+  }
+
   const fromName = env.MAIL_FROM_NAME || 'Aquaflow';
+  const fromAddress = `${fromName} <onboarding@resend.dev>`;
   const adminEmail = env.ADMIN_EMAIL || 'aquaflowymv@gmail.com';
 
   const itemsHtml = (order.items || []).map(item => `
@@ -35,29 +46,25 @@ export async function onRequestPost(context) {
   const customerHtml = `
 <!DOCTYPE html>
 <html lang="tr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 0;">
     <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
         <tr>
           <td style="background:#0f172a;padding:28px 32px;text-align:center;">
-            <span style="font-size:24px;font-weight:900;letter-spacing:0.15em;color:#ffffff;">
-              AQUA<span style="color:#38bdf8;">FLOW</span>
-            </span>
+            <span style="font-size:24px;font-weight:900;letter-spacing:0.15em;color:#fff;">AQUA<span style="color:#38bdf8;">FLOW</span></span>
             <p style="color:#94a3b8;font-size:12px;margin:8px 0 0;">Sipariş Onayı</p>
           </td>
         </tr>
         <tr>
           <td style="padding:32px;">
             <h2 style="margin:0 0 6px;color:#0f172a;font-size:18px;">✅ Siparişiniz Alındı!</h2>
-            <p style="color:#64748b;font-size:13px;margin:0 0 24px;">Sayın <strong>${order.fullname || ''}</strong>, siparişiniz başarıyla kaydedildi ve hazırlanmaya başladı.</p>
-            
+            <p style="color:#64748b;font-size:13px;margin:0 0 24px;">Sayın <strong>${order.fullname || ''}</strong>, siparişiniz başarıyla kaydedildi.</p>
             <div style="background:#f1f5f9;border-radius:10px;padding:14px 18px;margin-bottom:24px;">
-              <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Sipariş No</p>
+              <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;">Sipariş No</p>
               <p style="margin:0;font-size:18px;font-weight:900;color:#0f172a;font-family:monospace;">#${order.id || ''}</p>
             </div>
-
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
               <thead>
                 <tr>
@@ -68,16 +75,13 @@ export async function onRequestPost(context) {
               </thead>
               <tbody>${itemsHtml}</tbody>
             </table>
-
             <div style="text-align:right;margin-bottom:24px;">
-              <p style="margin:4px 0;font-size:13px;color:#64748b;">Ara Toplam: <strong>${Math.round(order.subtotal || 0).toLocaleString('tr-TR')} ₺</strong></p>
               <p style="margin:4px 0;font-size:13px;color:#64748b;">Kargo: <strong>${Math.round(order.shipping || 0).toLocaleString('tr-TR')} ₺</strong></p>
               <p style="margin:8px 0 0;font-size:16px;font-weight:900;color:#0f172a;">Toplam: ${Math.round(order.total || 0).toLocaleString('tr-TR')} ₺</p>
             </div>
-
             <div style="background:#f8fafc;border-radius:10px;padding:16px 18px;border-left:3px solid #38bdf8;">
               <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;">Teslimat Adresi</p>
-              <p style="margin:0;font-size:13px;color:#334155;">${order.fullname || ''} &bull; ${order.phone || ''}</p>
+              <p style="margin:0;font-size:13px;color:#334155;">${order.fullname || ''} • ${order.phone || ''}</p>
               <p style="margin:4px 0 0;font-size:13px;color:#334155;">${order.city || ''} / ${order.district || ''}</p>
               <p style="margin:4px 0 0;font-size:13px;color:#334155;">${order.address || ''}</p>
               <p style="margin:8px 0 0;font-size:12px;color:#64748b;">Ödeme: ${order.paymentMethod === 'kapida' ? '🚪 Kapıda Ödeme' : '💳 Kredi/Banka Kartı'}</p>
@@ -86,8 +90,8 @@ export async function onRequestPost(context) {
         </tr>
         <tr>
           <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
-            <p style="color:#94a3b8;font-size:11px;margin:0;">Siparişlerinizi <strong>aquaflowymv@gmail.com</strong> adresiyle veya 0551 688 9214 numarasıyla takip edebilirsiniz.</p>
-            <p style="color:#94a3b8;font-size:11px;margin:6px 0 0;">© 2025 Aquaflow™ — Tüm hakları saklıdır.</p>
+            <p style="color:#94a3b8;font-size:11px;margin:0;">Tel: 0551 688 9214 • aquaflowymv@gmail.com</p>
+            <p style="color:#94a3b8;font-size:11px;margin:6px 0 0;">© 2025 Aquaflow™</p>
           </td>
         </tr>
       </table>
@@ -98,8 +102,8 @@ export async function onRequestPost(context) {
 
   const adminHtml = `
 <html><body style="font-family:Arial,sans-serif;padding:20px;color:#334155;">
-  <h2>🛒 Yeni Sipariş Geldi! #${order.id}</h2>
-  <p><strong>Müşteri:</strong> ${order.fullname} — ${order.phone} — ${order.email || ''}</p>
+  <h2 style="color:#0f172a;">🛒 Yeni Sipariş #${order.id}</h2>
+  <p><strong>Müşteri:</strong> ${order.fullname} — ${order.phone} — ${order.email || 'e-posta yok'}</p>
   <p><strong>Adres:</strong> ${order.city} / ${order.district} — ${order.address}</p>
   <p><strong>Ödeme:</strong> ${order.paymentMethod === 'kapida' ? 'Kapıda Ödeme' : 'Kredi/Banka Kartı'}</p>
   <p><strong>Toplam:</strong> ${Math.round(order.total || 0).toLocaleString('tr-TR')} ₺</p>
@@ -107,41 +111,30 @@ export async function onRequestPost(context) {
   <ul>${(order.items || []).map(i => `<li>${i.title} x${i.quantity} — ${Math.round(i.price * i.quantity).toLocaleString('tr-TR')} ₺</li>`).join('')}</ul>
 </body></html>`;
 
-  const recipients = [{ email: order.email }];
-  // Eğer müşteri e-postası varsa admin'e de gönder
-  const adminRecipients = [{ email: adminEmail }];
-
   async function sendMail(to, subject, html, text) {
-    return fetch('https://api.mailchannels.net/tx/v1/send', {
+    return fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        personalizations: [{ to }],
-        from: { email: fromAddress, name: fromName },
-        subject,
-        content: [
-          { type: 'text/plain', value: text },
-          { type: 'text/html', value: html }
-        ]
-      })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${resendKey}`
+      },
+      body: JSON.stringify({ from: fromAddress, to, subject, html, text })
     });
   }
 
   const promises = [];
 
-  // Müşteriye gönder (email varsa)
   if (order.email) {
     promises.push(sendMail(
-      recipients,
+      [order.email],
       `Aquaflow Sipariş Onayı #${order.id}`,
       customerHtml,
-      `Siparişiniz alındı! Sipariş No: #${order.id}. Toplam: ${Math.round(order.total || 0)} TL`
+      `Siparişiniz alındı! #${order.id} — Toplam: ${Math.round(order.total || 0)} TL`
     ));
   }
 
-  // Admin'e bildirim gönder
   promises.push(sendMail(
-    adminRecipients,
+    [adminEmail],
     `🛒 Yeni Sipariş #${order.id} — ${Math.round(order.total || 0)} TL`,
     adminHtml,
     `Yeni sipariş: #${order.id} — ${order.fullname} — ${Math.round(order.total || 0)} TL`

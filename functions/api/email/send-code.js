@@ -1,16 +1,24 @@
 /**
  * Cloudflare Pages Function: POST /api/email/send-code
- * Kayıt ve şifre sıfırlama için 6 haneli doğrulama kodu gönderir.
- * MailChannels üzerinden gönderim yapar (Cloudflare native, ücretsiz).
+ * Resend.com API ile doğrulama kodu gönderir.
+ * Stateless token — KV gerekmez.
  *
- * Ortam Değişkeni (Cloudflare Dashboard > Settings > Environment Variables):
- *   MAIL_FROM_ADDRESS  - Gönderen adres, örn: aquaflowymv@gmail.com
- *   MAIL_FROM_NAME     - Gönderen adı, örn: Aquaflow
+ * Env Variables (Cloudflare Dashboard > Settings > Environment Variables):
+ *   RESEND_API_KEY   - Resend API anahtarı (re_...)
+ *   CODE_SECRET      - İmza için gizli anahtar (istediğiniz rastgele string)
+ *   MAIL_FROM_NAME   - Gönderen adı (örn: Aquaflow)
  */
 
-// KV namespace adı: AQUAFLOW_CODES (Cloudflare Dashboard'dan bağlanmalı)
-// Eğer KV yoksa, in-memory Map kullanılır (worker yeniden başladığında sıfırlanır)
-const inMemoryCodes = new Map();
+async function signToken(email, code, expiresAt, secret) {
+  const data = `${email}|${code}|${expiresAt}`;
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret || 'aquaflow-secret-2025'),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  const sigHex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return btoa(`${data}|${sigHex}`);
+}
 
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -34,36 +42,18 @@ export async function onRequestPost(context) {
   }
 
   const email = String(body.email || '').trim().toLowerCase();
-  const purpose = String(body.purpose || 'register'); // 'register' | 'reset'
+  const purpose = String(body.purpose || 'register');
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return new Response(JSON.stringify({ error: 'Geçerli bir e-posta adresi giriniz.' }), { status: 400, headers: corsHeaders });
   }
 
-  // Rate limiting: aynı e-posta için 60 saniye içinde tekrar gönderim engelle
-  const rateLimitKey = `rl:${email}`;
-  if (env.AQUAFLOW_CODES) {
-    const last = await env.AQUAFLOW_CODES.get(rateLimitKey);
-    if (last) {
-      return new Response(JSON.stringify({ error: 'Yeni kod için lütfen 60 saniye bekleyiniz.', retryAfter: 60 }), { status: 429, headers: corsHeaders });
-    }
-  }
-
   const code = generateCode();
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 dakika
+  const token = await signToken(email, code, expiresAt, env.CODE_SECRET);
 
-  // Kodu sakla (KV varsa KV'ya, yoksa in-memory)
-  const codeData = JSON.stringify({ code, expiresAt, purpose });
-  if (env.AQUAFLOW_CODES) {
-    await env.AQUAFLOW_CODES.put(`code:${email}`, codeData, { expirationTtl: 600 });
-    await env.AQUAFLOW_CODES.put(rateLimitKey, '1', { expirationTtl: 60 });
-  } else {
-    inMemoryCodes.set(`code:${email}`, { code, expiresAt, purpose });
-    setTimeout(() => inMemoryCodes.delete(`code:${email}`), 600000);
-  }
-
-  const fromAddress = env.MAIL_FROM_ADDRESS || 'aquaflowymv@gmail.com';
   const fromName = env.MAIL_FROM_NAME || 'Aquaflow';
+  const fromAddress = 'onboarding@resend.dev'; // Domain doğrulaması olmadan çalışır
 
   const subject = purpose === 'reset'
     ? 'Aquaflow Şifre Sıfırlama Kodu'
@@ -72,7 +62,7 @@ export async function onRequestPost(context) {
   const htmlBody = `
 <!DOCTYPE html>
 <html lang="tr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 0;">
     <tr><td align="center">
@@ -94,8 +84,8 @@ export async function onRequestPost(context) {
                 ? 'Şifrenizi sıfırlamak için aşağıdaki kodu kullanın.'
                 : 'Hesabınızı doğrulamak için aşağıdaki kodu kullanın.'}
             </p>
-            <div style="background:#f1f5f9;border-radius:12px;padding:24px;margin:0 auto 28px;display:inline-block;">
-              <span style="font-size:36px;font-weight:900;letter-spacing:0.25em;color:#0f172a;font-family:monospace;">${code}</span>
+            <div style="background:#f1f5f9;border-radius:12px;padding:24px;margin:0 auto 28px;">
+              <span style="font-size:40px;font-weight:900;letter-spacing:0.3em;color:#0f172a;font-family:monospace;">${code}</span>
             </div>
             <p style="color:#94a3b8;font-size:12px;margin:0;">
               Bu kod <strong>10 dakika</strong> geçerlidir. Kimseyle paylaşmayın.
@@ -104,9 +94,7 @@ export async function onRequestPost(context) {
         </tr>
         <tr>
           <td style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0;">
-            <p style="color:#94a3b8;font-size:11px;margin:0;">
-              Bu e-postayı siz istemediyseniz dikkate almayınız. © 2025 Aquaflow™
-            </p>
+            <p style="color:#94a3b8;font-size:11px;margin:0;">© 2025 Aquaflow™ — Bu maili siz istemediyseniz dikkate almayınız.</p>
           </td>
         </tr>
       </table>
@@ -115,46 +103,35 @@ export async function onRequestPost(context) {
 </body>
 </html>`;
 
-  // MailChannels ile gönder
-  try {
-    const mcRes = await fetch('https://api.mailchannels.net/tx/v1/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email }] }],
-        from: { email: fromAddress, name: fromName },
-        subject,
-        content: [
-          { type: 'text/plain', value: `Aquaflow doğrulama kodunuz: ${code}\n\nBu kod 10 dakika geçerlidir.` },
-          { type: 'text/html', value: htmlBody }
-        ]
-      })
-    });
-
-    if (!mcRes.ok && mcRes.status !== 202) {
-      const errText = await mcRes.text().catch(() => '');
-      console.error('[MailChannels] Hata:', mcRes.status, errText);
-      // MailChannels başarısız olursa kodu yine de döndür (geliştirici moduna düş)
-      return new Response(JSON.stringify({
-        ok: true,
-        dev: true,
-        code,
-        resendAfter: 60,
-        message: 'E-posta gönderilemedi (MailChannels hatası), geliştirici modunda devam ediliyor.'
-      }), { status: 200, headers: corsHeaders });
-    }
-  } catch (err) {
-    console.error('[MailChannels] Fetch hatası:', err);
-    return new Response(JSON.stringify({
-      ok: true,
-      dev: true,
-      code,
-      resendAfter: 60,
-      message: 'E-posta gönderilemedi, geliştirici modunda devam ediliyor.'
-    }), { status: 200, headers: corsHeaders });
+  // Resend API ile gönder
+  const resendKey = env.RESEND_API_KEY;
+  if (!resendKey) {
+    return new Response(JSON.stringify({ error: 'Sunucu yapılandırma hatası: RESEND_API_KEY eksik.' }), { status: 500, headers: corsHeaders });
   }
 
-  return new Response(JSON.stringify({ ok: true, resendAfter: 60 }), { status: 200, headers: corsHeaders });
+  const sendRes = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${resendKey}`
+    },
+    body: JSON.stringify({
+      from: `${fromName} <${fromAddress}>`,
+      to: [email],
+      subject,
+      html: htmlBody,
+      text: `Aquaflow doğrulama kodunuz: ${code}\n\nBu kod 10 dakika geçerlidir. Kimseyle paylaşmayın.`
+    })
+  });
+
+  if (!sendRes.ok) {
+    const errBody = await sendRes.json().catch(() => ({}));
+    console.error('[Resend] Hata:', sendRes.status, JSON.stringify(errBody));
+    return new Response(JSON.stringify({ error: 'E-posta gönderilemedi. Lütfen tekrar deneyin.', detail: errBody }), { status: 500, headers: corsHeaders });
+  }
+
+  // Token'ı client'a gönder (stateless — sunucuda saklama yok)
+  return new Response(JSON.stringify({ ok: true, token, resendAfter: 60 }), { status: 200, headers: corsHeaders });
 }
 
 export async function onRequestOptions() {
