@@ -53,7 +53,7 @@ export async function onRequestPost(context) {
   const token = await signToken(email, code, expiresAt, env.CODE_SECRET);
 
   const fromName = env.MAIL_FROM_NAME || 'Aquaflow';
-  const fromAddress = 'onboarding@resend.dev'; // Domain doğrulaması olmadan çalışır
+  const fromAddress = `noreply@aquaflowtr.com`; // Verified domain
 
   const subject = purpose === 'reset'
     ? 'Aquaflow Şifre Sıfırlama Kodu'

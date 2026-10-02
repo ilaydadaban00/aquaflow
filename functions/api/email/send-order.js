@@ -32,7 +32,7 @@ export async function onRequestPost(context) {
   }
 
   const fromName = env.MAIL_FROM_NAME || 'Aquaflow';
-  const fromAddress = `${fromName} <onboarding@resend.dev>`;
+  const fromAddress = `${fromName} <noreply@aquaflowtr.com>`;
   const adminEmail = env.ADMIN_EMAIL || 'aquaflowymv@gmail.com';
 
   const itemsHtml = (order.items || []).map(item => `
