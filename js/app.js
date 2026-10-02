@@ -2718,6 +2718,25 @@
   // ==========================================
   // MASTER RENDER FONKSİYONU
   // ==========================================
+  // SİPARİŞ ONAY MAİLİ (Cloudflare Pages Function)
+  // ==========================================
+  async function sendOrderConfirmationEmail(order) {
+    try {
+      const res = await fetch('/api/email/send-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order)
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.warn('[Aquaflow] Sipariş onay maili gönderilemedi:', body.error || res.status);
+      }
+    } catch (err) {
+      console.warn('[Aquaflow] Sipariş onay maili gönderilemedi (sunucu hatası):', err);
+    }
+  }
+
+  // ==========================================
   function renderApp() {
     renderAppView();
   }
