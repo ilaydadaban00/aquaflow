@@ -1214,7 +1214,7 @@
                 </div>
 
                 <div class="flex gap-2 pt-1">
-                  <button type="button" onclick="state.resetStep = 1; renderApp();" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-xl">
+                  <button type="button" onclick="state.resetStep = 1; state.resetToken = ''; renderApp();" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-3 rounded-xl">
                     Geri
                   </button>
                   <button type="submit" class="flex-1 bg-slate-950 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl transition-all shadow-md">
@@ -3332,7 +3332,7 @@
           return;
         }
         state.resetToken = body.token || '';
-        state.resetEmail = email;
+        state.resetEmail = String(email).trim().toLowerCase();
         state.resetStep = 2;
         state.simulatedCodeNotice = res;
         renderApp();
@@ -3352,6 +3352,15 @@
 
       if (newPassword !== confirmPassword) {
         showToast('Girdiğiniz şifreler eşleşmiyor!', '✕');
+        return;
+      }
+
+      // Token yoksa kullanıcıyı 1. adıma yönlendir
+      if (!state.resetToken || !state.resetEmail) {
+        showToast('Oturum süresi doldu. Lütfen doğrulama kodunu yeniden gönderin.', '✕');
+        state.resetStep = 1;
+        state.resetToken = '';
+        renderApp();
         return;
       }
 
@@ -3701,7 +3710,7 @@
       renderApp();
     },
 
-    submitUserForm(e) {
+    async submitUserForm(e) {
       e.preventDefault();
       const name = document.getElementById('new-user-name')?.value;
       const email = document.getElementById('new-user-email')?.value;
@@ -3716,6 +3725,22 @@
       state.isAddUserModalOpen = false;
       renderApp();
       showToast(`Yeni ${role === 'admin' ? 'Yönetici' : 'Müşteri'} hesabı "${email}" eklendi!`);
+
+      // Hoş geldiniz maili göndermeyi dene (hata oluşursa sessizce geç)
+      try {
+        const cleanEmail = String(email).trim().toLowerCase();
+        const mailRes = await fetch('/api/email/send-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, purpose: 'register' })
+        });
+        if (!mailRes.ok) {
+          const errBody = await mailRes.json().catch(() => ({}));
+          console.warn('[Aquaflow] Hoş geldiniz maili gönderilemedi:', errBody.error || mailRes.status);
+        }
+      } catch (err) {
+        console.warn('[Aquaflow] Hoş geldiniz maili gönderilemedi (ağ hatası):', err);
+      }
     },
 
     deleteUser(id) {
