@@ -127,7 +127,9 @@ export async function onRequestPost(context) {
   if (!sendRes.ok) {
     const errBody = await sendRes.json().catch(() => ({}));
     console.error('[Resend] Hata:', sendRes.status, JSON.stringify(errBody));
-    return new Response(JSON.stringify({ error: 'E-posta gönderilemedi. Lütfen tekrar deneyin.', detail: errBody }), { status: 500, headers: corsHeaders });
+    // Email gitmese bile token'ı döndür — doğrulama akışı kesilmesin
+    // Frontend'e emailFailed bildirimi gönder
+    return new Response(JSON.stringify({ ok: true, token, resendAfter: 60, emailFailed: true, emailError: errBody?.message || String(sendRes.status) }), { status: 200, headers: corsHeaders });
   }
 
   // Token'ı client'a gönder (stateless — sunucuda saklama yok)

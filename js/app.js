@@ -3195,7 +3195,11 @@
         state.resendAt = Date.now() + (body.resendAfter || 60) * 1000;
         state.authStep = 'verify';
         renderApp();
-        showToast('Doğrulama kodu e-posta adresinize gönderildi.');
+        if (body.emailFailed) {
+          showToast('⚠️ E-posta gönderilemedi (Resend kısıtı). Kod: ' + (body.emailError || '?'), '⚠️');
+        } else {
+          showToast('Doğrulama kodu e-posta adresinize gönderildi.');
+        }
       } catch (err) {
         showToast('E-posta sunucusuna ulaşılamıyor. Lütfen tekrar deneyin.', '✕');
       }
@@ -3336,7 +3340,11 @@
         state.resetStep = 2;
         state.simulatedCodeNotice = res;
         renderApp();
-        showToast('Doğrulama kodu e-posta adresinize gönderildi.');
+        if (body.emailFailed) {
+          showToast('⚠️ E-posta gönderilemedi. Resend domain doğrulaması gerekli.', '⚠️');
+        } else {
+          showToast('Doğrulama kodu e-posta adresinize gönderildi.');
+        }
         return;
       } catch (err) {
         showToast('E-posta sunucusuna ulaşılamıyor. Lütfen tekrar deneyin.', '✕');
