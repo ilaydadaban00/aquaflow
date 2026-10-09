@@ -1,4 +1,4 @@
-// GET /api/media/<id> -> yüklenen görsel/video
+// GET /api/media/[id] -> yüklenen görsel/video
 export async function onRequestGet({ env, params }) {
   const row = await env.DB.prepare('SELECT data FROM media WHERE id=?1').bind(params.id).first();
   if (!row) return new Response('Yok', { status: 404 });

@@ -9,8 +9,6 @@
  *   MAIL_FROM_NAME   - Gönderen adı
  */
 
-import { addCustomer } from '../../_lib/reminders.js';
-
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -28,7 +26,6 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ error: 'Geçersiz istek.' }), { status: 400, headers: corsHeaders });
   }
 
-  order.fullname = order.fullname || order.customerName; // istemci customerName gönderiyor
   const resendKey = env.RESEND_API_KEY;
   if (!resendKey) {
     return new Response(JSON.stringify({ error: 'RESEND_API_KEY eksik.' }), { status: 500, headers: corsHeaders });
@@ -88,7 +85,7 @@ export async function onRequestPost(context) {
               <p style="margin:0;font-size:13px;color:#334155;">${order.fullname || ''} • ${order.phone || ''}</p>
               <p style="margin:4px 0 0;font-size:13px;color:#334155;">${order.city || ''} / ${order.district || ''}</p>
               <p style="margin:4px 0 0;font-size:13px;color:#334155;">${order.address || ''}</p>
-              <p style="margin:8px 0 0;font-size:12px;color:#64748b;">Ödeme: ${String(order.paymentMethod || '').startsWith('Kapıda') ? '🚪 Kapıda Ödeme (Kargonomi)' : '💳 Kredi/Banka Kartı'}</p>
+              <p style="margin:8px 0 0;font-size:12px;color:#64748b;">Ödeme: ${order.paymentMethod === 'kapida' ? '🚪 Kapıda Ödeme' : '💳 Kredi/Banka Kartı'}</p>
             </div>
           </td>
         </tr>
@@ -109,7 +106,7 @@ export async function onRequestPost(context) {
   <h2 style="color:#0f172a;">🛒 Yeni Sipariş #${order.id}</h2>
   <p><strong>Müşteri:</strong> ${order.fullname} — ${order.phone} — ${order.email || 'e-posta yok'}</p>
   <p><strong>Adres:</strong> ${order.city} / ${order.district} — ${order.address}</p>
-  <p><strong>Ödeme:</strong> ${String(order.paymentMethod || '').startsWith('Kapıda') ? 'Kapıda Ödeme' : 'Kredi/Banka Kartı'}</p>
+  <p><strong>Ödeme:</strong> ${order.paymentMethod === 'kapida' ? 'Kapıda Ödeme' : 'Kredi/Banka Kartı'}</p>
   <p><strong>Toplam:</strong> ${Math.round(order.total || 0).toLocaleString('tr-TR')} ₺</p>
   <hr/>
   <ul>${(order.items || []).map(i => `<li>${i.title} x${i.quantity} — ${Math.round(i.price * i.quantity).toLocaleString('tr-TR')} ₺</li>`).join('')}</ul>
@@ -145,7 +142,6 @@ export async function onRequestPost(context) {
   ));
 
   await Promise.allSettled(promises);
-  await addCustomer(env, order.email, (order.fullname || order.customerName || '').split(' ')[0]);
 
   return new Response(JSON.stringify({ ok: true }), { status: 200, headers: corsHeaders });
 }
