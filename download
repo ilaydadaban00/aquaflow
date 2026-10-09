@@ -1,0 +1,14 @@
+# Hassas konfigürasyon dosyaları - Cloudflare Pages'e yükleme
+smtp-config.json
+*.env
+.env*
+secrets.*
+
+# Yerel geliştirme araçları
+baslat.bat
+serve.ps1
+
+# Editor klasörleri
+.vscode/
+.idea/
+*.log

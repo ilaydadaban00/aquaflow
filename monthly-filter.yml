@@ -1,0 +1,13 @@
+name: Aylık filtre hatırlatma maili
+on:
+  schedule:
+    - cron: '0 7 1 * *'   # Her ayın 1'i, 10:00 (Türkiye saati)
+  workflow_dispatch:        # Elle test için: Actions sekmesinden "Run workflow"
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hatırlatma maillerini gönder
+        run: |
+          curl -fsS -X POST "${{ secrets.SITE_URL }}/api/email/send-filter-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
