@@ -3131,6 +3131,11 @@
         return;
       }
 
+      if (address.length < 10) {
+        showToast('Adres en az 10 karakter olmalı. Mahalle, sokak, bina ve daire no dahil açık adresinizi yazın.', '✕');
+        return;
+      }
+
       const totals = getCartTotals();
       const paymentMethod = state.selectedPaymentMethod === 'kart'
         ? 'Kredi Kartı (Online 3D Secure)'
