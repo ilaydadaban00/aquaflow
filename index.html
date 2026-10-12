@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="tr" class="scroll-smooth">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aquaflow™ — Yüksek Basınçlı Arıtmalı Duş ve Banyo Sistemleri</title>
+  <meta name="description"
+    content="Aquaflow arıtmalı duş başlıkları, kırılmaz hortumlar, döner mafsallar, robot kol musluk uçları, mineral filtreler ve lüks banyo aksesuarları. Güvenli online alışveriş ve hızlı teslimat." />
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚿</text></svg>" />
+
+  <!-- Bunny Fonts: Plus Jakarta Sans (Google Fonts alternatifi, TR'de sorunsuz) -->
+  <link rel="preconnect" href="https://fonts.bunny.net" />
+  <link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:300,400,500,600,700,800,900&display=swap"
+    rel="stylesheet" />
+
+  <!-- Tailwind CSS (Yerel - CDN bağımlılığı olmadan çalışır) -->
+  <script src="tailwind.min.js?v=20261006"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+              950: '#082f49',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body class="bg-slate-50 text-slate-900 selection:bg-sky-500 selection:text-white">
+  <!-- Root SPA Container -->
+  <div id="app" class="min-h-screen flex flex-col justify-between"></div>
+
+  <!-- Data and Application Logic -->
+  <script src="data.js?v=20261007"></script>
+  <script src="app.js?v=20261007"></script>
+</body>
+
+</html>
