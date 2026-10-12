@@ -3126,6 +3126,11 @@
         return;
       }
 
+      if (fullname.split(/\s+/).filter(Boolean).length < 2) {
+        showToast('Lütfen adınızı ve soyadınızı birlikte yazın (en az 2 kelime).', '✕');
+        return;
+      }
+
       const totals = getCartTotals();
       const paymentMethod = state.selectedPaymentMethod === 'kart'
         ? 'Kredi Kartı (Online 3D Secure)'
