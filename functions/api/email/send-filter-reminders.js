@@ -37,10 +37,15 @@ export async function onRequestPost({ request, env }) {
      LIMIT ?2`
   ).bind(cutoff, MAX_PER_RUN).all();
 
-  if (dry) return json({ ok: true, dry: true, wouldSend: (results || []).length, emails: (results || []).map(r => r.email) });
+  // Test modu: ?test=adres@ornek.com -> sadece o adrese hemen bir deneme maili gonderir (listeyi/kayitlari etkilemez)
+  const testTo = (new URL(request.url).searchParams.get('test') || '').trim().toLowerCase();
+  const testMode = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(testTo);
+  const list = testMode ? [{ email: testTo, name: null }] : (results || []);
 
-  let sent = 0, failed = 0;
-  for (const c of results || []) {
+  if (dry && !testMode) return json({ ok: true, dry: true, wouldSend: list.length, emails: list.map(r => r.email) });
+
+  let sent = 0, failed = 0, lastError = null;
+  for (const c of list) {
     const sig = await signEmail(c.email, env.CODE_SECRET);
     const unsub = `${site}/api/email/unsubscribe?e=${encodeURIComponent(c.email)}&t=${sig}`;
     const hello = c.name ? `Merhaba ${esc(c.name)},` : 'Merhaba,';
@@ -73,10 +78,11 @@ export async function onRequestPost({ request, env }) {
     });
     if (r.ok) {
       sent++;
-      await env.DB.prepare('UPDATE reminders SET last_sent_at = ?1 WHERE email = ?2').bind(Date.now(), c.email).run();
+      if (!testMode) await env.DB.prepare('UPDATE reminders SET last_sent_at = ?1 WHERE email = ?2').bind(Date.now(), c.email).run();
     } else {
       failed++;
+      lastError = (await r.text().catch(() => '')).slice(0, 300);
     }
   }
-  return json({ ok: true, sent, failed, remainingBatch: (results || []).length === MAX_PER_RUN });
+  return json({ ok: true, test: testMode, sent, failed, lastError, remainingBatch: !testMode && (results || []).length === MAX_PER_RUN });
 }
