@@ -33,7 +33,7 @@ async function kn(env, path, init = {}) {
 
 // Yanıt {data:[...]} ya da düz dizi olabilir — ikisini de destekle
 const list = (b) => Array.isArray(b) ? b : (Array.isArray(b?.data) ? b.data : []);
-// SURUM: v3 (sabit icerik)
+// SURUM: v4 (ad soyad kontrolu)
 const nameOf = (x) => x?.name ?? x?.title ?? '';
 // Kargonomi 'icerik' alani: Turkce harf/emoji/ozel isaret kabul etmiyor -> ASCII'ye cevir
 const safeContent = (t) => String(t || '')
@@ -71,6 +71,9 @@ export async function onRequestPost({ request, env }) {
 
   try {
     // Kargonomi: state = il, city = ilçe
+    if (String(o.customerName).trim().split(/\s+/).filter(Boolean).length < 2) {
+      return json({ error: 'Alıcı adı en az 2 kelime olmalı (Ad Soyad). Siparişteki ad: "' + o.customerName + '". Müşteriden tam adı alıp siparişi düzeltin.' }, 422);
+    }
     const stateId = await findId(env, '/states/1', cityName);
     if (!stateId) return json({ error: `İl bulunamadı: ${cityName}` }, 422);
     const cityId = await findId(env, `/cities/${stateId}`, districtName);
@@ -101,7 +104,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const r = await kn(env, '/shipments', { method: 'POST', body: JSON.stringify({ shipment }) });
-    if (!r.ok) return json({ error: 'Kargonomi gönderiyi reddetti [v3, icerik: ' + (shipment.packages?.[0]?.content || '-') + ']', gonderilenIcerik: shipment.packages?.[0]?.content, detail: r.body }, 502);
+    if (!r.ok) return json({ error: 'Kargonomi gönderiyi reddetti [v4, icerik: ' + (shipment.packages?.[0]?.content || '-') + ']', gonderilenIcerik: shipment.packages?.[0]?.content, detail: r.body }, 502);
 
     const s = r.body?.data ?? r.body;
     return json({
