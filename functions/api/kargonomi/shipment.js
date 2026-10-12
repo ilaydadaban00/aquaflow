@@ -33,7 +33,15 @@ async function kn(env, path, init = {}) {
 
 // Yanıt {data:[...]} ya da düz dizi olabilir — ikisini de destekle
 const list = (b) => Array.isArray(b) ? b : (Array.isArray(b?.data) ? b.data : []);
+// SURUM: icerik-v2
 const nameOf = (x) => x?.name ?? x?.title ?? '';
+// Kargonomi 'icerik' alani: Turkce harf/emoji/ozel isaret kabul etmiyor -> ASCII'ye cevir
+const safeContent = (t) => String(t || '')
+  .replace(/[çÇ]/g,m=>m==='ç'?'c':'C').replace(/[ğĞ]/g,m=>m==='ğ'?'g':'G')
+  .replace(/ı/g,'i').replace(/İ/g,'I').replace(/[öÖ]/g,m=>m==='ö'?'o':'O')
+  .replace(/[şŞ]/g,m=>m==='ş'?'s':'S').replace(/[üÜ]/g,m=>m==='ü'?'u':'U')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[^A-Za-z0-9 ,.\-]/g,' ').replace(/\s+/g,' ').trim().slice(0, 250);
 
 async function findId(env, path, wanted) {
   const r = await kn(env, path);
@@ -75,7 +83,7 @@ export async function onRequestPost({ request, env }) {
       buyer_state_id: String(stateId),
       buyer_city_id: String(cityId),
       packages: [{
-        content: (o.items || []).map(i => `${i.title} x${i.quantity}`).join(', ').slice(0, 250) || 'Aquaflow siparişi',
+        content: safeContent((o.items || []).map(i => `${i.title} x${i.quantity}`).join(', ')) || 'Aquaflow siparisi',
         desi: String(desi)
       }]
     };
@@ -93,7 +101,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const r = await kn(env, '/shipments', { method: 'POST', body: JSON.stringify({ shipment }) });
-    if (!r.ok) return json({ error: 'Kargonomi gönderiyi reddetti', detail: r.body }, 502);
+    if (!r.ok) return json({ error: 'Kargonomi gönderiyi reddetti [v2, icerik: ' + (shipment.packages?.[0]?.content || '-') + ']', gonderilenIcerik: shipment.packages?.[0]?.content, detail: r.body }, 502);
 
     const s = r.body?.data ?? r.body;
     return json({
