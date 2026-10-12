@@ -188,7 +188,7 @@
 
   function getCartTotals() {
     const subtotal = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const freeShippingThreshold = 500;
+    const freeShippingThreshold = 400;
     const isFreeShipping = subtotal >= freeShippingThreshold;
     const shipping = subtotal > 0 && !isFreeShipping ? 39 : 0;
     const total = subtotal + shipping;
@@ -257,6 +257,9 @@
       : [];
 
     return `
+      <div class="bg-sky-600 text-white text-center text-[11px] sm:text-xs font-bold tracking-wide py-2 px-3">
+        🚚 400 TL ve üzeri alışverişlerde KARGO BEDAVA!
+      </div>
       ${renderBrowsingNotice()}
       <header class="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm transition-all duration-200">
         <!-- 1. Üst Ana Header Çubuğu -->
