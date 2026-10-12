@@ -25,7 +25,7 @@ export async function onRequestPost({ request, env }) {
 
   const site = (env.SITE_URL || 'https://aquaflowtr.com').replace(/\/$/, '');
   const fromName = env.MAIL_FROM_NAME || 'Aquaflow';
-  const cutoff = Date.now() - 25 * DAY; // 25: Şubat gibi kısa aylarda atlamasın
+  const cutoff = Date.now() - 12 * DAY; // 25: Şubat gibi kısa aylarda atlamasın
   const dry = new URL(request.url).searchParams.get('dry') === '1';
 
   await ensureTable(env);
