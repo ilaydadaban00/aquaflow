@@ -4,6 +4,8 @@
  * İmza doğrulanır, ödeme durumu D1'e yazılır, yöneticiye e-posta gider.
  * PayTR'a mutlaka düz "OK" metni dönmelidir.
  */
+import { redeemCode } from '../../_lib/discounts.js';
+
 const enc = new TextEncoder();
 async function hmacB64(message, key) {
   const k = await crypto.subtle.importKey('raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -33,6 +35,13 @@ export async function onRequestPost({ request, env }) {
 
   const newStatus = status === 'success' ? 'paid' : 'failed';
   await env.DB.prepare('UPDATE paytr_payments SET status = ?1 WHERE oid = ?2').bind(newStatus, oid).run();
+
+  if (newStatus === 'paid') {
+    try {
+      const o = JSON.parse(row.order_json || '{}');
+      if (o.discountCode) await redeemCode(env, o.discountCode);
+    } catch (e) { /* PayTR'a OK dönmeyi asla bozma */ }
+  }
 
   if (newStatus === 'paid' && env.RESEND_API_KEY) {
     try {

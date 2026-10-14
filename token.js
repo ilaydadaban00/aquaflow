@@ -6,6 +6,8 @@
  *      PAYTR_TEST_MODE  ("1" = test, boş/0 = canlı)
  *      SITE_URL         (örn. https://www.aquaflowtr.com)
  */
+import { findUsable } from '../../_lib/discounts.js';
+
 const enc = new TextEncoder();
 const j = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
 
@@ -46,9 +48,17 @@ export async function onRequestPost({ request, env }) {
     subtotal += price * qty;
     basket.push([String(p.title || it.productId).slice(0, 100) + (it.variant ? ` (${it.variant})` : ''), price.toFixed(2), qty]);
   }
-  const shipping = subtotal > 0 && subtotal < 500 ? 39 : 0; // app.js ile aynı kural
+  // İndirim kodu (sunucuda doğrulanır; kullanım hakkı ödeme başarılı olunca callback'te düşer)
+  let discount = 0, discountCode = '';
+  if (b.discountCode) {
+    const d = await findUsable(env, b.discountCode);
+    if (!d.ok) return j({ error: d.error }, 422);
+    discount = Math.min(d.row.amount, Math.floor(subtotal));
+    discountCode = d.row.code;
+  }
+  const shipping = subtotal > 0 && subtotal < 400 ? 39 : 0; // app.js ile aynı kural (400 TL ve üzeri kargo bedava)
   if (shipping) basket.push(['Kargo', shipping.toFixed(2), 1]);
-  const total = subtotal + shipping;
+  const total = subtotal - discount + shipping;
   const paymentAmount = String(Math.round(total * 100)); // kuruş
 
   const clientOrderId = String(b.orderId || '');
@@ -81,7 +91,7 @@ export async function onRequestPost({ request, env }) {
   ).run();
   await env.DB.prepare(
     `INSERT INTO paytr_payments (oid, amount, status, order_json, created_at) VALUES (?1, ?2, 'pending', ?3, ?4)`
-  ).bind(oid, Number(paymentAmount), JSON.stringify({ clientOrderId, name, email, phone, address, basket, total }), Date.now()).run();
+  ).bind(oid, Number(paymentAmount), JSON.stringify({ clientOrderId, name, email, phone, address, basket, total, discountCode, discount }), Date.now()).run();
 
   return j({ ok: true, token: res.token, oid });
 }

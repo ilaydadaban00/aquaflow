@@ -81,6 +81,7 @@ export async function onRequestPost(context) {
             </table>
             <div style="text-align:right;margin-bottom:24px;">
               <p style="margin:4px 0;font-size:13px;color:#64748b;">Kargo: <strong>${Math.round(order.shipping || 0).toLocaleString('tr-TR')} ₺</strong></p>
+              ${Number(order.discountAmount) > 0 ? `<p style="margin:4px 0;font-size:13px;color:#047857;">İndirim (${String(order.discountCode || '').replace(/[^A-Za-z0-9-]/g, '')}): <strong>-${Math.round(Number(order.discountAmount)).toLocaleString('tr-TR')} ₺</strong></p>` : ''}
               <p style="margin:8px 0 0;font-size:16px;font-weight:900;color:#0f172a;">Toplam: ${Math.round(order.total || 0).toLocaleString('tr-TR')} ₺</p>
             </div>
             <div style="background:#f8fafc;border-radius:10px;padding:16px 18px;border-left:3px solid #38bdf8;">
@@ -110,6 +111,7 @@ export async function onRequestPost(context) {
   <p><strong>Müşteri:</strong> ${order.fullname} — ${order.phone} — ${order.email || 'e-posta yok'}</p>
   <p><strong>Adres:</strong> ${order.city} / ${order.district} — ${order.address}</p>
   <p><strong>Ödeme:</strong> ${String(order.paymentMethod || '').startsWith('Kapıda') ? 'Kapıda Ödeme' : 'Kredi/Banka Kartı'}</p>
+  ${Number(order.discountAmount) > 0 ? `<p><strong>İndirim kodu:</strong> ${String(order.discountCode || '').replace(/[^A-Za-z0-9-]/g, '')} (-${Math.round(Number(order.discountAmount)).toLocaleString('tr-TR')} ₺)</p>` : ''}
   <p><strong>Toplam:</strong> ${Math.round(order.total || 0).toLocaleString('tr-TR')} ₺</p>
   <hr/>
   <ul>${(order.items || []).map(i => `<li>${i.title} x${i.quantity} — ${Math.round(i.price * i.quantity).toLocaleString('tr-TR')} ₺</li>`).join('')}</ul>
