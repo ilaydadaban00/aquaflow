@@ -1645,11 +1645,11 @@
                 <!-- Adres: her bilgi ayrı ve zorunlu alan -->
                 <div class="col-span-2 sm:col-span-1">
                   <label class="block font-bold text-slate-700 mb-1">Teslimat İli *</label>
-                  <input required id="order-city-text" type="text" placeholder="Örn: İstanbul" value="${(state.checkoutCity || '').trim()}" autocomplete="off"  class="w-full border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                  <input required id="order-city-text" type="text" placeholder="Örn: İstanbul" value="" autocomplete="off"  class="w-full border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
                 </div>
                 <div class="col-span-2 sm:col-span-1">
                   <label class="block font-bold text-slate-700 mb-1">Teslimat İlçesi *</label>
-                  <input required id="order-district-text" type="text" placeholder="Örn: Kadıköy" value="${(state.checkoutDistrict || '').trim()}" autocomplete="off"  class="w-full border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                  <input required id="order-district-text" type="text" placeholder="Örn: Kadıköy" value="" autocomplete="off"  class="w-full border border-slate-300 rounded-xl p-2.5 font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
                 </div>
                 <div class="col-span-2 sm:col-span-1">
                   <label class="block font-bold text-slate-700 mb-1">Mahalle *</label>
@@ -3262,8 +3262,6 @@
       try { sessionStorage.removeItem('aq_paytr_pending'); } catch {}
       order.paymentMethod = 'Kredi Kartı (Online 3D Secure) — ÖDENDİ';
       data.addOrder(order);
-      state.checkoutCity = order.city.split(' / ')[0];
-      state.checkoutDistrict = order.district;
       state.orderCompleted = order;
       state.cart = [];
       state.discount = null;
@@ -3281,8 +3279,16 @@
     },
 
     setPaymentMethod(method) {
+      // Form yeniden çizilmeden önce girilen bilgileri sakla, çizimden sonra geri yaz
+      const ids = ['order-firstname','order-lastname','order-email','order-phone','order-city-text','order-district-text','order-neighborhood','order-street','order-building','order-apartment'];
+      const saved = {};
+      ids.forEach(id => { const el = document.getElementById(id); if (el) saved[id] = el.value; });
+      const checks = {};
+      ['consent-terms','consent-kvkk'].forEach(id => { const el = document.getElementById(id); if (el) checks[id] = el.checked; });
       state.selectedPaymentMethod = method;
       renderApp();
+      Object.keys(saved).forEach(id => { const el = document.getElementById(id); if (el) el.value = saved[id]; });
+      Object.keys(checks).forEach(id => { const el = document.getElementById(id); if (el) el.checked = checks[id]; });
     },
 
     async submitOrder(e) {
@@ -3427,8 +3433,6 @@
       data.addOrder(newOrder);
 
       // Madde 1: Siparişten sonra state'i güncelle
-      state.checkoutCity = cityRaw;
-      state.checkoutDistrict = districtRaw;
 
       state.orderCompleted = newOrder;
       state.cart = [];
