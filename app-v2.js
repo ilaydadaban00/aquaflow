@@ -1689,28 +1689,11 @@
                 </label>
               </div>
 
-              <!-- Kredi Kartı Alanları (Boş Gelir) -->
+              <!-- Kredi Kartı: kart bilgileri sitede toplanmaz, PayTR güvenli ödeme sayfasında girilir -->
               ${state.selectedPaymentMethod === 'kart' ? `
-                <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
-                  <span class="text-[11px] font-bold text-slate-700 block">🔒 Kart Bilgileri (Güvenli Giriş)</span>
-                  <div>
-                    <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Kart Üzerindeki İsim</label>
-                    <input id="card-holder" type="text" placeholder="Ad Soyad" autocomplete="off" class="w-full border border-slate-300 rounded-lg p-2 font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500" />
-                  </div>
-                  <div>
-                    <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Kart Numarası</label>
-                    <input id="card-number" type="text" maxlength="19" placeholder="0000 0000 0000 0000" autocomplete="off" class="w-full border border-slate-300 rounded-lg p-2 font-mono font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500" />
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Son Kullanma (AA/YY)</label>
-                      <input id="card-expiry" type="text" maxlength="5" placeholder="AA/YY" autocomplete="off" class="w-full border border-slate-300 rounded-lg p-2 font-mono font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500" />
-                    </div>
-                    <div>
-                      <label class="block text-[10px] font-bold text-slate-600 mb-0.5">CVV</label>
-                      <input id="card-cvv" type="password" maxlength="4" placeholder="000" autocomplete="off" class="w-full border border-slate-300 rounded-lg p-2 font-mono font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500" />
-                    </div>
-                  </div>
+                <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+                  <span class="text-[11px] font-bold text-slate-700 block">🔒 Güvenli Ödeme (PayTR)</span>
+                  <p class="text-[11px] text-slate-600">"Siparişi Tamamla"ya bastığınızda kart bilgilerinizi PayTR'ın güvenli ödeme ekranına gireceksiniz. Kart bilgileriniz sitemizde tutulmaz.</p>
                 </div>
               ` : ''}
 
@@ -3186,6 +3169,117 @@
       renderApp();
     },
 
+    // ---- PayTR iFrame ödeme akışı ----
+    async startPaytr(order) {
+      const btn = document.querySelector('#checkout-sheet button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+      try {
+        const r = await fetch('/api/paytr/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            items: order.items.map(i => ({ productId: i.productId, quantity: i.quantity, variant: i.variant })),
+            email: order.email, name: order.customerName, phone: order.phone,
+            address: `${order.address} ${order.city}`,
+            discountCode: order.discountCode || ''
+          })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.token) {
+          showToast((j.error || 'Ödeme başlatılamadı') + (j.reason ? ' (' + j.reason + ')' : ''), '✕');
+          if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+          return;
+        }
+        order.paytrOid = j.oid;
+        try { sessionStorage.setItem('aq_paytr_pending', JSON.stringify(order)); } catch {}
+        this.showPaytrFrame(j.token);
+        this.pollPaytr(order, 0);
+      } catch (err) {
+        showToast('Ödeme başlatılamadı, lütfen tekrar deneyin.', '✕');
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      }
+    },
+
+    showPaytrFrame(token) {
+      let ov = document.getElementById('paytr-overlay');
+      if (ov) ov.remove();
+      ov = document.createElement('div');
+      ov.id = 'paytr-overlay';
+      ov.className = 'fixed inset-0 z-[100] bg-slate-950/70 flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-6';
+      ov.innerHTML = `
+        <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <span class="text-xs font-bold text-slate-900">🔒 Güvenli Ödeme — PayTR</span>
+            <button onclick="window.AQUAFLOW_APP.cancelPaytr()" class="text-slate-400 hover:text-slate-700 font-bold p-1">✕</button>
+          </div>
+          <iframe id="paytriframe" src="https://www.paytr.com/odeme/guvenli/${token}" frameborder="0" scrolling="no" style="width:100%;min-height:600px;border:0"></iframe>
+        </div>`;
+      document.body.appendChild(ov);
+      if (!document.getElementById('paytr-resizer')) {
+        const sc = document.createElement('script');
+        sc.id = 'paytr-resizer';
+        sc.src = 'https://www.paytr.com/js/iframeResizer.min.js';
+        sc.onload = () => { try { window.iFrameResize({}, '#paytriframe'); } catch {} };
+        document.head.appendChild(sc);
+      } else { try { window.iFrameResize({}, '#paytriframe'); } catch {} }
+    },
+
+    cancelPaytr() {
+      this._paytrStop = true;
+      const ov = document.getElementById('paytr-overlay'); if (ov) ov.remove();
+      try { sessionStorage.removeItem('aq_paytr_pending'); } catch {}
+      renderApp();
+      showToast('Ödeme iptal edildi. Sepetiniz korunuyor.', '✕');
+    },
+
+    async pollPaytr(order, n) {
+      this._paytrStop = false;
+      const tick = async (i) => {
+        if (this._paytrStop) return;
+        let st = 'unknown';
+        try {
+          const r = await fetch('/api/paytr/status?oid=' + encodeURIComponent(order.paytrOid), { cache: 'no-store' });
+          st = (await r.json()).status;
+        } catch {}
+        if (st === 'paid') return this.finishPaytr(order);
+        if (st === 'failed') {
+          const ov = document.getElementById('paytr-overlay'); if (ov) ov.remove();
+          try { sessionStorage.removeItem('aq_paytr_pending'); } catch {}
+          showToast('Ödeme başarısız oldu. Lütfen tekrar deneyin.', '✕');
+          renderApp();
+          return;
+        }
+        if (i > 200) return; // ~10 dk
+        setTimeout(() => tick(i + 1), 3000);
+      };
+      tick(n);
+    },
+
+    finishPaytr(order) {
+      this._paytrStop = true;
+      const ov = document.getElementById('paytr-overlay'); if (ov) ov.remove();
+      try { sessionStorage.removeItem('aq_paytr_pending'); } catch {}
+      order.paymentMethod = 'Kredi Kartı (Online 3D Secure) — ÖDENDİ';
+      data.addOrder(order);
+      state.checkoutCity = order.city.split(' / ')[0];
+      state.checkoutDistrict = order.district;
+      state.orderCompleted = order;
+      state.cart = [];
+      state.discount = null;
+      state.discountInput = '';
+      renderApp();
+      showToast('Ödemeniz alındı, siparişiniz kaydedildi!');
+      sendOrderConfirmationEmail(order);
+    },
+
+    resumePaytr() {
+      // Sayfa yenilenirse / üst pencereye dönülürse bekleyen ödemeyi kaldığı yerden izle
+      let o = null;
+      try { o = JSON.parse(sessionStorage.getItem('aq_paytr_pending') || 'null'); } catch {}
+      if (o && o.paytrOid) this.pollPaytr(o, 0);
+    },
+
     setPaymentMethod(method) {
       state.selectedPaymentMethod = method;
       renderApp();
@@ -3231,6 +3325,28 @@
       const address = `${neighborhood} Mah. ${street} Bina No: ${buildingNo} Daire No: ${apartmentNo}`;
 
       const totals = getCartTotals();
+
+      // Online kart: ödeme PayTR iFrame ile alınır, sipariş ödeme onaylanınca kaydedilir
+      if (state.selectedPaymentMethod === 'kart') {
+        const t0 = getCartTotals();
+        const pendingOrder = {
+          id: 'AQ-' + Math.floor(100000 + Math.random() * 900000),
+          date: new Date().toLocaleDateString('tr-TR') + ' ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+          customerName: fullname, phone, email, city,
+          district: districtRaw, firstName, lastName, neighborhood, street, buildingNo, apartmentNo, address,
+          items: state.cart.map(i => ({
+            productId: i.id, title: i.title, variant: i.variant, quantity: i.quantity, price: i.price,
+            costPrice: i.costPrice || Math.round((i.price || 0) * 0.45), image: i.image
+          })),
+          subtotal: t0.subtotal, shipping: t0.shipping,
+          discountCode: state.discount ? state.discount.code : '', discountAmount: t0.discountAmount,
+          total: t0.total, totalCost: 0,
+          paymentMethod: 'Kredi Kartı (Online 3D Secure)',
+          status: 'İşleme Alındı', trackingNo: 'Bekleniyor', emailSent: false
+        };
+        pendingOrder.totalCost = pendingOrder.items.reduce((a, i) => a + i.costPrice * (i.quantity || 1), 0);
+        return this.startPaytr(pendingOrder);
+      }
 
       // İndirim kodu: sipariş verilirken sunucuda kullanım hakkı düşülür (aynı kod iki kez kullanılamaz)
       let discountCode = '';
@@ -4091,8 +4207,9 @@
 
   // DOM Yüklendiğinde Başlat
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => window.AQUAFLOW_APP.init());
+    document.addEventListener('DOMContentLoaded', () => { window.AQUAFLOW_APP.init(); window.AQUAFLOW_APP.resumePaytr(); });
   } else {
     window.AQUAFLOW_APP.init();
+    window.AQUAFLOW_APP.resumePaytr();
   }
 })();

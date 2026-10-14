@@ -16,6 +16,13 @@
     rel="stylesheet" />
 
   <!-- Tailwind CSS (Yerel - CDN bağımlılığı olmadan çalışır) -->
+  <script>
+    // PayTR ok/fail adresi iframe içinde açılırsa tüm siteyi tekrar yükleme; üst pencere durumu zaten sorguluyor
+    if (window.self !== window.top && /[?&]paytr=/.test(location.search)) {
+      document.write('<p style="font:14px sans-serif;text-align:center;padding:24px">Ödeme sonucu alınıyor…</p>');
+      window.stop();
+    }
+  </script>
   <script src="tailwind.min.js?v=20261006"></script>
   <script>
     tailwind.config = {
