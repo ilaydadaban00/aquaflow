@@ -28,6 +28,13 @@
     postLoginView: null, // Giriş sonrası dönülecek sayfa (ör. 'customer_account')
     dismissedBanner: false,
 
+    // İndirim Kodu
+    discount: null,        // { code, amount } uygulanmış kod
+    discountInput: '',
+    discountBusy: false,
+    adminDiscounts: null,  // yönetici paneli kod listesi
+    adminDiscountsError: '',
+
     // Şifre Sıfırlama Durumu
     isPasswordResetModalOpen: false,
     resetStep: 1, // 1: E-posta gir, 2: Kod ve Yeni Şifre gir
@@ -191,7 +198,9 @@
     const freeShippingThreshold = 400;
     const isFreeShipping = subtotal >= freeShippingThreshold;
     const shipping = subtotal > 0 && !isFreeShipping ? 39 : 0;
-    const total = subtotal + shipping;
+    // İndirim kodu: sepet tutarını geçemez; kargo ücreti indirimden önceki ara toplama göre belirlenir
+    const discountAmount = state.discount && subtotal > 0 ? Math.min(state.discount.amount, Math.floor(subtotal)) : 0;
+    const total = subtotal - discountAmount + shipping;
     const amountNeeded = Math.max(0, freeShippingThreshold - subtotal);
     const progressPercent = Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
     const totalItems = state.cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -199,6 +208,7 @@
     return {
       subtotal,
       shipping,
+      discountAmount,
       total,
       isFreeShipping,
       amountNeeded,
@@ -1434,11 +1444,32 @@
 
             ${state.cart.length > 0 ? `
               <div class="p-5 border-t border-slate-200 bg-slate-50 space-y-3">
+                <!-- İndirim Kodu -->
+                ${state.discount ? `
+                  <div class="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-2 text-xs">
+                    <span class="font-bold">🏷️ <span class="font-mono">${state.discount.code}</span> uygulandı</span>
+                    <button onclick="window.AQUAFLOW_APP.removeDiscount()" class="font-bold underline hover:text-emerald-950">Kaldır</button>
+                  </div>
+                ` : `
+                  <div class="flex gap-2" onkeydown="if(event.key==='Enter'){event.preventDefault();window.AQUAFLOW_APP.applyDiscount();}">
+                    <input id="discount-input" type="text" autocomplete="off" autocapitalize="characters" placeholder="İndirim kodu" value="${state.discountInput || ''}" oninput="window.AQUAFLOW_APP.setDiscountInput(this.value)" class="flex-1 min-w-0 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-semibold uppercase text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                    <button onclick="window.AQUAFLOW_APP.applyDiscount()" ${state.discountBusy ? 'disabled' : ''} class="shrink-0 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-extrabold px-4 rounded-xl transition-colors disabled:opacity-50">
+                      ${state.discountBusy ? '...' : 'Uygula'}
+                    </button>
+                  </div>
+                `}
+
                 <div class="space-y-1.5 text-xs text-slate-600">
                   <div class="flex justify-between">
                     <span>Ara Toplam</span>
                     <span class="font-bold text-slate-900">${formatPrice(totals.subtotal)}</span>
                   </div>
+                  ${totals.discountAmount > 0 ? `
+                  <div class="flex justify-between text-emerald-700">
+                    <span>İndirim (<span class="font-mono">${state.discount.code}</span>)</span>
+                    <span class="font-bold">−${formatPrice(totals.discountAmount)}</span>
+                  </div>
+                  ` : ''}
                   <div class="flex justify-between">
                     <span>Kargo</span>
                     <span class="font-bold ${totals.isFreeShipping ? 'text-emerald-700' : 'text-slate-900'}">
@@ -1702,6 +1733,13 @@
                 </label>
               </div>
 
+              ${totals.discountAmount > 0 ? `
+              <div class="pt-2 border-t border-slate-200 space-y-1 text-xs text-slate-600">
+                <div class="flex justify-between"><span>Ara Toplam</span><span class="font-bold text-slate-900">${formatPrice(totals.subtotal)}</span></div>
+                <div class="flex justify-between text-emerald-700"><span>İndirim (<span class="font-mono">${state.discount.code}</span>)</span><span class="font-bold">−${formatPrice(totals.discountAmount)}</span></div>
+                <div class="flex justify-between"><span>Kargo</span><span class="font-bold ${totals.isFreeShipping ? 'text-emerald-700' : 'text-slate-900'}">${totals.isFreeShipping ? 'ÜCRETSİZ' : formatPrice(totals.shipping)}</span></div>
+              </div>
+              ` : ''}
               <div class="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-black text-slate-950">
                 <span>Ödenecek Toplam Tutar:</span>
                 <span class="text-lg text-sky-600">${formatPrice(totals.total)}</span>
@@ -2161,6 +2199,9 @@
             <button onclick="window.AQUAFLOW_APP.setAdminTab('analytics')" class="px-5 py-2.5 text-xs font-extrabold rounded-2xl transition-all whitespace-nowrap ${state.adminTab === 'analytics' ? 'bg-slate-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}">
               📊 Mali Durum & Kâr Analitiği
             </button>
+            <button onclick="window.AQUAFLOW_APP.setAdminTab('discounts')" class="px-5 py-2.5 text-xs font-extrabold rounded-2xl transition-all whitespace-nowrap ${state.adminTab === 'discounts' ? 'bg-slate-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}">
+              🏷️ İndirim Kodları
+            </button>
             <button onclick="window.AQUAFLOW_APP.setAdminTab('users')" class="px-5 py-2.5 text-xs font-extrabold rounded-2xl transition-all whitespace-nowrap ${state.adminTab === 'users' ? 'bg-slate-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}">
               👥 Yetkili & Kullanıcı Yönetimi (${users.length})
             </button>
@@ -2245,6 +2286,7 @@
                         <td class="p-4 whitespace-nowrap">
                           <div class="font-black text-slate-950 text-sm">${formatPrice(order.total)}</div>
                           <div class="text-[10px] text-emerald-700 font-bold">Kâr: +${formatPrice((order.total || 0) - (order.totalCost || 0))}</div>
+                          ${order.discountAmount ? `<div class="text-[10px] text-sky-700 font-bold">🏷️ ${order.discountCode} (−${formatPrice(order.discountAmount)})</div>` : ''}
                           <div class="text-[10px] text-slate-400">${order.paymentMethod}</div>
                         </td>
                         <td class="p-4">
@@ -2435,6 +2477,57 @@
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- SEKME: İNDİRİM KODLARI -->
+          ${state.adminTab === 'discounts' ? `
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div class="p-6 border-b border-slate-100">
+                <h2 class="text-lg font-extrabold text-slate-900">İndirim Kodları</h2>
+                <p class="text-xs text-slate-500">Tutarı girin, rastgele kod üretilsin. Kod hangi ürün alınırsa alınsın sepetten bu tutarı düşer.</p>
+              </div>
+              <div class="p-6 border-b border-slate-100 flex flex-wrap items-end gap-3">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">İndirim Tutarı (TL)</label>
+                  <input id="disc-amount" type="number" min="1" step="1" placeholder="100" class="w-36 border border-slate-300 rounded-xl p-2.5 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">Kullanım Hakkı</label>
+                  <input id="disc-uses" type="number" min="1" step="1" value="1" class="w-28 border border-slate-300 rounded-xl p-2.5 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                </div>
+                <button onclick="window.AQUAFLOW_APP.createDiscount()" class="bg-slate-950 hover:bg-slate-800 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow transition-all">
+                  🎲 Rastgele Kod Oluştur
+                </button>
+              </div>
+              ${state.adminDiscountsError ? `<div class="m-6 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">${state.adminDiscountsError}</div>` : ''}
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider">
+                    <tr><th class="p-4">Kod</th><th class="p-4">İndirim</th><th class="p-4">Kullanım</th><th class="p-4">Durum</th><th class="p-4 text-right">İşlem</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${state.adminDiscounts === null ? `<tr><td colspan="5" class="p-6 text-center text-slate-400">Yükleniyor...</td></tr>`
+                      : state.adminDiscounts.length === 0 ? `<tr><td colspan="5" class="p-6 text-center text-slate-400">Henüz kod oluşturulmadı.</td></tr>`
+                      : state.adminDiscounts.map(d => {
+                          const exhausted = d.used_count >= d.max_uses;
+                          const status = !d.active ? ['Kapalı', 'bg-slate-100 text-slate-600'] : exhausted ? ['Tükendi', 'bg-amber-50 text-amber-700'] : ['Aktif', 'bg-emerald-50 text-emerald-700'];
+                          return `
+                            <tr>
+                              <td class="p-4 font-mono font-black text-slate-950 text-sm">${d.code}</td>
+                              <td class="p-4 font-black text-slate-900">${formatPrice(d.amount)}</td>
+                              <td class="p-4 font-bold text-slate-700">${d.used_count} / ${d.max_uses}</td>
+                              <td class="p-4"><span class="px-2.5 py-1 rounded-full font-bold ${status[1]}">${status[0]}</span></td>
+                              <td class="p-4 text-right whitespace-nowrap space-x-1">
+                                <button onclick="window.AQUAFLOW_APP.copyDiscount('${d.code}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-lg">Kopyala</button>
+                                <button onclick="window.AQUAFLOW_APP.toggleDiscount('${d.code}', ${d.active ? 'false' : 'true'})" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-lg">${d.active ? 'Kapat' : 'Aç'}</button>
+                                <button onclick="window.AQUAFLOW_APP.deleteDiscount('${d.code}')" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-3 py-1.5 rounded-lg">Sil</button>
+                              </td>
+                            </tr>`;
+                        }).join('')}
+                  </tbody>
+                </table>
               </div>
             </div>
           ` : ''}
@@ -3098,7 +3191,7 @@
       renderApp();
     },
 
-    submitOrder(e) {
+    async submitOrder(e) {
       e.preventDefault();
 
       const consentTerms = document.getElementById('consent-terms');
@@ -3138,6 +3231,32 @@
       const address = `${neighborhood} Mah. ${street} Bina No: ${buildingNo} Daire No: ${apartmentNo}`;
 
       const totals = getCartTotals();
+
+      // İndirim kodu: sipariş verilirken sunucuda kullanım hakkı düşülür (aynı kod iki kez kullanılamaz)
+      let discountCode = '';
+      let discountAmount = 0;
+      if (state.discount && totals.discountAmount > 0) {
+        try {
+          const rr = await fetch('/api/discounts/redeem', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: state.discount.code })
+          });
+          const jj = await rr.json().catch(() => ({}));
+          if (!rr.ok || !jj.ok) {
+            state.discount = null;
+            renderApp();
+            showToast((jj.error || 'İndirim kodu kullanılamadı.') + ' Kod kaldırıldı, tutar güncellendi.', '✕');
+            return;
+          }
+          discountCode = jj.code;
+          discountAmount = totals.discountAmount;
+        } catch (err) {
+          showToast('İndirim kodu doğrulanamadı, lütfen tekrar deneyin.', '✕');
+          return;
+        }
+      }
+
       const paymentMethod = state.selectedPaymentMethod === 'kart'
         ? 'Kredi Kartı (Online 3D Secure)'
         : 'Kapıda Ödeme (Nakit/Kart)';
@@ -3177,6 +3296,10 @@
         apartmentNo: apartmentNo,
         address: address,
         items: orderItems,
+        subtotal: totals.subtotal,
+        shipping: totals.shipping,
+        discountCode: discountCode,
+        discountAmount: discountAmount,
         total: totals.total,
         totalCost: totalOrderCost,
         paymentMethod: paymentMethod,
@@ -3193,6 +3316,8 @@
 
       state.orderCompleted = newOrder;
       state.cart = [];
+      state.discount = null;
+      state.discountInput = '';
       renderApp();
       showToast('Siparişiniz başarıyla alındı ve kaydedildi!');
 
@@ -3580,6 +3705,81 @@
     setAdminTab(tab) {
       state.adminTab = tab;
       renderApp();
+      if (tab === 'discounts') this.loadDiscounts();
+    },
+
+    // ---------- İndirim Kodu: Müşteri ----------
+    setDiscountInput(v) { state.discountInput = String(v || ''); },
+
+    async applyDiscount() {
+      const code = (state.discountInput || '').trim();
+      if (!code) { showToast('Lütfen indirim kodunu girin.', '✕'); return; }
+      if (getCartTotals().subtotal <= 0) { showToast('Önce sepetinize ürün ekleyin.', '✕'); return; }
+      state.discountBusy = true;
+      renderApp();
+      try {
+        const r = await fetch('/api/discounts/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || 'İndirim kodu doğrulanamadı.');
+        state.discount = { code: j.code, amount: j.amount };
+        state.discountInput = '';
+        showToast(`İndirim kodu uygulandı: −${formatPrice(Math.min(j.amount, getCartTotals().subtotal))}`);
+      } catch (err) {
+        showToast(err.message || 'İndirim kodu doğrulanamadı.', '✕');
+      }
+      state.discountBusy = false;
+      renderApp();
+    },
+
+    removeDiscount() {
+      state.discount = null;
+      renderApp();
+    },
+
+    // ---------- İndirim Kodu: Yönetici ----------
+    async loadDiscounts() {
+      state.adminDiscountsError = '';
+      try {
+        const j = await data.discountApi('GET');
+        state.adminDiscounts = j.codes || [];
+      } catch (err) {
+        state.adminDiscounts = state.adminDiscounts || [];
+        state.adminDiscountsError = err.message;
+      }
+      renderApp();
+    },
+
+    async createDiscount() {
+      const amount = parseInt(document.getElementById('disc-amount')?.value, 10);
+      const maxUses = parseInt(document.getElementById('disc-uses')?.value, 10) || 1;
+      if (!(amount >= 1)) { showToast('Lütfen indirim tutarını girin (örn. 100).', '✕'); return; }
+      try {
+        const j = await data.discountApi('POST', { amount, maxUses });
+        showToast(`Kod oluşturuldu: ${j.code} (−${formatPrice(j.amount)})`);
+        await this.loadDiscounts();
+      } catch (err) {
+        showToast(err.message, '✕');
+      }
+    },
+
+    async toggleDiscount(code, active) {
+      try { await data.discountApi('PUT', { code, active }); await this.loadDiscounts(); }
+      catch (err) { showToast(err.message, '✕'); }
+    },
+
+    async deleteDiscount(code) {
+      if (!confirm(`${code} kodunu silmek istediğinize emin misiniz?`)) return;
+      try { await data.discountApi('DELETE', { code }); await this.loadDiscounts(); showToast('Kod silindi'); }
+      catch (err) { showToast(err.message, '✕'); }
+    },
+
+    copyDiscount(code) {
+      try { navigator.clipboard.writeText(code); showToast(`Kopyalandı: ${code}`); }
+      catch (e) { showToast(code); }
     },
 
     changeOrderStatus(orderId, newStatus) {

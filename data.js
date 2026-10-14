@@ -1028,6 +1028,18 @@
     getProducts: loadProducts,
     saveProducts: saveProducts,
     serverLogin: serverLogin,
+    // Yönetici: indirim kodu API'si
+    async discountApi(method, body) {
+      const r = await fetch('/api/admin/discounts', {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 401) throw new Error('Yönetici oturumu sunucuda doğrulanmamış. Çıkış yapıp yönetici girişini tekrar yapın.');
+      if (!r.ok) throw new Error(j.error || ('Hata ' + r.status));
+      return j;
+    },
     ready: productsReady,
 
     addProduct(newProd) {
