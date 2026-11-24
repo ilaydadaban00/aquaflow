@@ -322,7 +322,7 @@
                     ${searchMatches.map(item => `
                       <div onclick="window.AQUAFLOW_APP.openProductPage('${item.id}')" class="p-2.5 rounded-xl hover:bg-slate-50 cursor-pointer flex items-center justify-between gap-3 transition-colors">
                         <div class="flex items-center gap-3">
-                          <img src="${getProductImages(item)[0] || item.image}" alt="${item.title}" class="w-12 h-12 rounded-lg object-cover border border-slate-200 bg-white shrink-0" />
+                          <img src="${getProductImages(item)[0] || item.image}" alt="${item.title}" class="w-12 h-12 rounded-lg object-contain border border-slate-200 bg-white shrink-0 p-1" />
                           <div>
                             <span class="text-[10px] font-bold text-sky-700 uppercase bg-sky-50 px-1.5 py-0.5 rounded">${item.categoryLabel || categoryLabels[item.category] || item.category}</span>
                             <h5 class="text-xs font-bold text-slate-900 line-clamp-1 mt-0.5">${item.title}</h5>
@@ -638,8 +638,8 @@
             ` : pageItems.map(prod => `
               <div class="group bg-white rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col relative">
                 
-                <div class="relative bg-slate-100 overflow-hidden cursor-pointer shrink-0" style="aspect-ratio:1/1;" onclick="window.AQUAFLOW_APP.openProductPage('${prod.id}')">
-                  <img src="${getProductImages(prod)[0] || prod.image || ''}" alt="${prod.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <div class="relative bg-white overflow-hidden cursor-pointer shrink-0" style="aspect-ratio:1/1;" onclick="window.AQUAFLOW_APP.openProductPage('${prod.id}')">
+                  <img src="${getProductImages(prod)[0] || prod.image || ''}" alt="${prod.title}" class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-3" />
                   
                   <div class="absolute top-3 left-3 flex flex-col gap-1.5">
                     ${prod.badge ? `
@@ -2335,7 +2335,7 @@
                         <tr class="hover:bg-slate-50/80 transition-colors ${prod.isVisible === false ? 'opacity-50 bg-slate-50/40' : ''}">
                           <td class="p-4">
                             <div class="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-white">
-                              <img src="${getProductImages(prod)[0] || prod.image || ''}" alt="${prod.title}" class="w-full h-full object-cover" />
+                              <img src="${getProductImages(prod)[0] || prod.image || ''}" alt="${prod.title}" class="w-full h-full object-contain p-1" />
                               ${getProductVideo(prod) ? `
                                 <span class="absolute bottom-0.5 right-0.5 bg-slate-950 text-sky-400 text-[9px] font-black px-1 rounded">▶ Video</span>
                               ` : ''}
